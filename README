@@ -1,0 +1,17 @@
+This project will be an indexer. The job of the indexer is to identify induvidual unique words and to list them in a document_index.txt. The indexer will take note of how many occurences of each word there are. The intention for indexing this information will be to apply a TD-IDF function on it. The TD-IDF function will take a bunch of search termas and it will determin the relevance of those search terms. It will do this by first calculating the term frequency in a given doument and it will combine this term frequency with an inverse document frequency. If the inverse document frequency is high, the search term is probably not relevant. This means that the term is in a lot of documents. The word the for example is the most used word in the english language. It will have a very high IDF virtue of this fact.
+
+This is also analogous to entropy in an encoded bitstream signal. The infromation of a given symbol will depend on its distribution relative to the rest of the symbols in the bitstream. If the probability of a symbol is low in a given bit stream, the infroamtion content of the symbol will be high.
+
+One common issue this will face is the complexity of stemming. If the function encounters the smae word in a different form it will count them as different words even though they are the same word. 
+
+**Example**
+cat,cats
+ 
+The semantics are not the same but they are very similar.
+
+The index files will be in the form of 
+
+**Example**
+index  frequency \n
+
+This standard structure will allow the parser to load the information effectively.
