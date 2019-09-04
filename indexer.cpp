@@ -176,7 +176,7 @@ int findTF(std::string searchTerm, std::string indexFileName){
 	return -1;
 }
 
-std::string findIndexFiles(){
+std::string findFiles(){
 	//This function checks for the presense of files in the working directory
 	std::array<char, 128> buffer;
     	std::string result;
@@ -193,10 +193,9 @@ std::string findIndexFiles(){
 	return result;
 }
 
-void parseDirectory(std::string fileNames, std::vector<std::string>& fileVec){
+void parseDirectory(std::string fileNames, std::string sub, std::vector<std::string>& fileVec){
 	//This functions job is to make the directory readable by
 	//the programme
-	std::string sub = "_index.txt";
 	std::string indexFile;
 	std::stringstream ss(fileNames);
 	
@@ -207,16 +206,13 @@ void parseDirectory(std::string fileNames, std::vector<std::string>& fileVec){
 	}
 }
 
-float findIDF(std::string searchTerm){
+float findIDF(std::string searchTerm, std::vector<std::string> fileVec){
 	//This function needs to check that the serch term is in the file	
-	std::vector<std::string> fileVec;
 	std::vector<Index> indexVec;
-	std::string files = findIndexFiles();
+	std::string files = findFiles();
 	unsigned int loc = 0, DF = 0;
 	bool found;
-	
-	parseDirectory(files, fileVec);
-	
+		
 	for(unsigned int i = 0; i < fileVec.size(); i++){
 		readIndexFile(fileVec[i], indexVec);
 		binarySearch(indexVec, searchTerm, 0, indexVec.size() - 1, loc, found, 0);
@@ -224,29 +220,144 @@ float findIDF(std::string searchTerm){
 			DF++;
 		}
 	}
-	std::cout << DF << std::endl;
-	std::cout << fileVec.size() << std::endl;
-	std::cout << (float)DF/fileVec.size() << std::endl;
 	float IDF = ((float)DF/fileVec.size());
 	return IDF;
 }
 
-int main (int argc, char* argv[]){
+void removeString(std::string& docName, std::string remove){
+	unsigned int pos = docName.find(remove);
+	if(pos != std::string::npos){
+		docName.erase(pos, (docName.size()) - 1);	
+	}
+}
+
+std::vector<std::string> parseDocs(std::vector<std::string> fileVec){
+	std::vector<std::string> docVec;
+	
+	for(unsigned int i = 0; i < fileVec.size(); i++){
+		if(fileVec[i].find("_index.txt") == std::string::npos){
+			docVec.push_back(fileVec[i]);
+		}
+	}
+
+	return docVec;
+}
+
+void checkForIndex(std::vector<std::string> docVec, std::vector<std::string> indexFileVec){
 	std::vector<std::string> wordVec;
 	std::vector<Index> indexVec;
+	std::string command, indexFile;
 
-	readFile(argv[1], wordVec);
-	sanitiser(wordVec);
-	indexVec = makeIndex(wordVec);
+	for(unsigned int i = 0; i < docVec.size(); i++){
+		removeString(docVec[i], ".txt");
+		indexFile = docVec[i] + "_index.txt";
+		for(unsigned int j = 0; j < indexFileVec.size(); j++){
+			if(indexFileVec[j].find(indexFile) == std::string::npos && j == (indexFileVec.size() - 1)){
+				readFile((docVec[i] + ".txt"), wordVec);
+				sanitiser(wordVec);	
+				indexVec = makeIndex(wordVec);
+				//Need to touch index file into the directory
+				command = "touch " + indexFile;
+				system(command.c_str());
+				writeIndexFile(indexFile, indexVec);
+			}	
+		}
+	}	
+}
+
+//Need to make a function that takes in the Search Terms, sanitises, looks for all of the
+//Index files and calculates an IDF term. The function must look for all of the .txt files
+//and check that there is not a corresponding _index.txt. If there is not a coresponding _index.txt
+//file an index must be made at runtime.
+
+struct FileStruct{
+	std::string name;
+	int TF;
+	float TFIDF;
+};
+
+struct Term{
+	std::string word;
+	float IDF;
+};
+
+void findTFIDF(FileStruct* file, Term* term, unsigned int numFile, unsigned int numTerm){
+	for(unsigned int i = 0; i < numFile; i++){
+		for(unsigned int j = 0; j < numTerm; j++){
+			file[i].TFIDF = (term[j].IDF) * ((float)file[i].TF);
+		}
+	}	
+}
+
+int main (int argc, char* argv[]){
+	std::vector<std::string> wordVec, fileVec, docVec, indexFileVec, searchQuery;
+	std::vector<Index> indexVec;
+
+	std::string files = findFiles();
+
+	parseDirectory(files, ".txt", fileVec);
+	docVec = parseDocs(fileVec);
+	//docVec contains all of the normal files without index files
+		
+	parseDirectory(files, "_index.txt", indexFileVec);
+	checkForIndex(docVec, indexFileVec);
+	files = findFiles();
+	indexFileVec.clear();
+	parseDirectory(files, "_index.txt", indexFileVec);
+	//indexFileVec contains the names of all the index files
 	
-	std::string indexFile = formatFileName(argv[1]);
-	writeIndexFile(indexFile, indexVec);
-	//Now that we have a data structure that contains the index, we must store that in a file
-	std::vector<std::string> searchQuery;
-	for(unsigned int i = 2; i < argc; i++){
+	for(unsigned int i = 1; i < argc; i++){
 		searchQuery.push_back(argv[i]);
 	}
-	std::cout << findIDF("zuzims") << std::endl;
+
+	//Need to calculate the TF for all of the search terms
+	std::sort(searchQuery.begin(), searchQuery.end());
+	std::sort(indexFileVec.begin(), indexFileVec.end());
+	std::sort(fileVec.begin(), fileVec.end());
+
+	FileStruct* file = new FileStruct[indexFileVec.size()];
+	for(unsigned int i = 0; i < indexFileVec.size(); i++){
+		file[i].name = fileVec[i];
+	}
+	for(unsigned int i = 0; i < searchQuery.size(); i++){
+		for(unsigned int j = 0; j < indexFileVec.size(); j++){
+			std::cout << i << "  " << j << std::endl;
+			file[j].TF = findTF(searchQuery[i], indexFileVec[j]);	
+		}
+	}
+	
+	//Need to calculate the IDF for all of the terms
+	Term* term = (Term*) malloc(sizeof(Term) * searchQuery.size());
+	for(unsigned int i = 0; i < searchQuery.size(); i++){
+		term[i].word = searchQuery[i];
+	}
+
+	for(unsigned int i = 0; i < searchQuery.size(); i++){
+		term[i].IDF = findIDF(searchQuery[i], indexFileVec);
+	}
+
+	//I must combine the TF and the IDF value to get relevance of a document
+	findTFIDF(file, term, fileVec.size(), searchQuery.size());
+
+	for(unsigned int i = 0; i < fileVec.size(); i++){
+		std::cout << file[i].TFIDF << std::endl;
+	}	
+
+	//readFile(argv[1], wordVec);
+	//sanitiser(wordVec);
+	//indexVec = makeIndex(wordVec);
+	
+	//std::string indexFile = formatFileName(argv[1]);
+	//writeIndexFile(indexFile, indexVec);
+	//Now that we have a data structure that contains the index, we must store that in a file
+	//std::vector<std::string> searchQuery;
+	//for(unsigned int i = 2; i < argc; i++){
+	//	searchQuery.push_back(argv[i]);
+	//}
+	
+	//for(int unsigned i = 0; i < searchQuery.size(); i++){
+	//	findIDF(searchQuery[i]);
+	//}
 
 	return 0;
 }
