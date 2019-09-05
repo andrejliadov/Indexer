@@ -92,7 +92,7 @@ void binarySearch(std::vector<Index> indexVec, std::string word, unsigned int st
 		found = true;
 		return;
 	}
-	else if(recursionDepth >= 40){
+	else if(recursionDepth >= 20){
 		std::cout << "ERROR: Term not found" << std::endl;
 		found = false;
 		return;
@@ -115,7 +115,7 @@ void binarySearch(std::vector<Index> indexVec, std::string word, unsigned int st
 //This function will be used to convert capital letter and remove punctuation
 void sanitiser(std::vector<std::string>& wordVec){
 	//Have to make a character blacklist
-	char charWhitelist[] = " ().;<>[],\n0123456789:?*!'";
+	char charWhitelist[] = " \"().;<>[],\n0123456789:?*!'";
 
 	//This function also needs to change the value of uppercase letters
 	//Loop through the worlist and remove the charcters
@@ -263,10 +263,35 @@ void checkForIndex(std::vector<std::string> docVec, std::vector<std::string> ind
 				command = "touch " + indexFile;
 				system(command.c_str());
 				writeIndexFile(indexFile, indexVec);
-				std::cout << "HERE" << std::endl;
 			}	
+			wordVec.clear();
+			indexVec.clear();
 		}
 	}	
+}
+
+//This function is to be used if theere are no _index.txt file in the directory
+void createIndexFile(std::vector<std::string> docVec){
+	std::vector<std::string> wordVec;
+	std::vector<Index> indexVec;
+	std::string command, indexFile;
+	
+	for(unsigned int i = 0; i < docVec.size(); i++){
+		removeString(docVec[i], ".txt");
+		indexFile = docVec[i] + "_index.txt";
+		readFile((docVec[i] + ".txt"), wordVec);
+		sanitiser(wordVec);
+		for(unsigned int j = 0; j < wordVec.size(); j++){
+			std::cout << wordVec[j] << std::endl;
+		}
+		indexVec = makeIndex(wordVec);
+		command = "touch " + indexFile;
+		system(command.c_str());
+		writeIndexFile(indexFile, indexVec);
+		std::cout << "HERE" << std::endl;
+		wordVec.clear();
+		indexVec.clear();
+	}
 }
 
 struct FileStruct{
@@ -303,7 +328,12 @@ int main (int argc, char* argv[]){
 	for(unsigned int i = 0; i < indexFileVec.size(); i++){
 		std::cout << indexFileVec[i] << std::endl;
 	}
-	checkForIndex(docVec, indexFileVec);
+	if(indexFileVec.size() != 0){
+		checkForIndex(docVec, indexFileVec);
+	}
+	else{
+		createIndexFile(docVec);
+	}
 	files = findFiles();
 	indexFileVec.clear();
 	parseDirectory(files, "_index.txt", indexFileVec);
