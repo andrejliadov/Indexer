@@ -1,4 +1,5 @@
 #include <iostream>
+#include <math.h>
 #include <sstream>
 #include <array>
 #include <cstring>
@@ -83,6 +84,8 @@ void readFile(std::string fileName, std::vector<std::string>& wordVec){
 void binarySearch(std::vector<Index> indexVec, std::string word, unsigned int start, unsigned int end, unsigned int& loc, bool& found, int recursionDepth){
 	unsigned int partition = (start + end)/2;
 	recursionDepth++;
+	std::cout << "here  " << partition <<  std::endl;
+
 
 	if(word == indexVec[partition].word){
 		loc = partition;
@@ -206,7 +209,7 @@ void parseDirectory(std::string fileNames, std::string sub, std::vector<std::str
 	}
 }
 
-float findIDF(std::string searchTerm, std::vector<std::string> fileVec){
+double findIDF(std::string searchTerm, std::vector<std::string> fileVec){
 	//This function needs to check that the serch term is in the file	
 	std::vector<Index> indexVec;
 	std::string files = findFiles();
@@ -220,7 +223,7 @@ float findIDF(std::string searchTerm, std::vector<std::string> fileVec){
 			DF++;
 		}
 	}
-	float IDF = ((float)DF/fileVec.size());
+	double IDF = log10((double)(fileVec.size()/(DF+0.00000001)));
 	return IDF;
 }
 
@@ -260,31 +263,28 @@ void checkForIndex(std::vector<std::string> docVec, std::vector<std::string> ind
 				command = "touch " + indexFile;
 				system(command.c_str());
 				writeIndexFile(indexFile, indexVec);
+				std::cout << "HERE" << std::endl;
 			}	
 		}
 	}	
 }
 
-//Need to make a function that takes in the Search Terms, sanitises, looks for all of the
-//Index files and calculates an IDF term. The function must look for all of the .txt files
-//and check that there is not a corresponding _index.txt. If there is not a coresponding _index.txt
-//file an index must be made at runtime.
-
 struct FileStruct{
-	std::string name;
+	std::string file;
+	std::string searchTerm;
 	int TF;
-	float TFIDF;
+	double TFIDF;
 };
 
 struct Term{
 	std::string word;
-	float IDF;
+	double IDF;
 };
 
 void findTFIDF(FileStruct* file, Term* term, unsigned int numFile, unsigned int numTerm){
 	for(unsigned int i = 0; i < numFile; i++){
 		for(unsigned int j = 0; j < numTerm; j++){
-			file[i].TFIDF = (term[j].IDF) * ((float)file[i].TF);
+			file[i].TFIDF = (term[j].IDF) * ((double)file[i].TF);
 		}
 	}	
 }
@@ -294,12 +294,15 @@ int main (int argc, char* argv[]){
 	std::vector<Index> indexVec;
 
 	std::string files = findFiles();
+	std::cout << files << std::endl;
 
 	parseDirectory(files, ".txt", fileVec);
 	docVec = parseDocs(fileVec);
 	//docVec contains all of the normal files without index files
-		
 	parseDirectory(files, "_index.txt", indexFileVec);
+	for(unsigned int i = 0; i < indexFileVec.size(); i++){
+		std::cout << indexFileVec[i] << std::endl;
+	}
 	checkForIndex(docVec, indexFileVec);
 	files = findFiles();
 	indexFileVec.clear();
@@ -314,34 +317,42 @@ int main (int argc, char* argv[]){
 	std::sort(searchQuery.begin(), searchQuery.end());
 	std::sort(indexFileVec.begin(), indexFileVec.end());
 	std::sort(fileVec.begin(), fileVec.end());
-
-	FileStruct* file = new FileStruct[indexFileVec.size()];
-	for(unsigned int i = 0; i < indexFileVec.size(); i++){
-		file[i].name = fileVec[i];
-	}
+	
+	Term* term = new Term[searchQuery.size()];
+	std::vector<FileStruct> fileStructVec;
+	FileStruct file;
 	for(unsigned int i = 0; i < searchQuery.size(); i++){
+		term[i].word = searchQuery[i];
+		term[i].IDF = findIDF(searchQuery[i], indexFileVec);
 		for(unsigned int j = 0; j < indexFileVec.size(); j++){
-			std::cout << i << "  " << j << std::endl;
-			file[j].TF = findTF(searchQuery[i], indexFileVec[j]);	
+			file.file = fileVec[j];
+			file.searchTerm = searchQuery[i];
+			file.TF = findTF(searchQuery[i], indexFileVec[j]);
+			file.TFIDF = term[i].IDF *  file.TF;
+			fileStructVec.push_back(file);	
+		}	
+	}	
+	
+	double* docScores = new double[indexFileVec.size()];
+	for(unsigned int i = 0; i < fileStructVec.size(); i++){
+		for(unsigned int j = 0; j < indexFileVec.size(); j++){		
+			if(i % indexFileVec.size() == j){
+			std::cout << indexFileVec.size() << "  " << j << "  " << fileStructVec.size() <<  std::endl;
+				docScores[j] += fileStructVec[i].TFIDF;
+			}
 		}
 	}
 	
-	//Need to calculate the IDF for all of the terms
-	Term* term = (Term*) malloc(sizeof(Term) * searchQuery.size());
-	for(unsigned int i = 0; i < searchQuery.size(); i++){
-		term[i].word = searchQuery[i];
-	}
-
-	for(unsigned int i = 0; i < searchQuery.size(); i++){
-		term[i].IDF = findIDF(searchQuery[i], indexFileVec);
+	for(unsigned int i = 0; i < indexFileVec.size(); i++){
+		std::cout << docScores[i] << std::endl;
 	}
 
 	//I must combine the TF and the IDF value to get relevance of a document
-	findTFIDF(file, term, fileVec.size(), searchQuery.size());
+	//findTFIDF(file, term, fileVec.size(), searchQuery.size());
 
-	for(unsigned int i = 0; i < fileVec.size(); i++){
-		std::cout << file[i].TFIDF << std::endl;
-	}	
+	//for(unsigned int i = 0; i < fileVec.size(); i++){
+	//	std::cout << file[i].TFIDF << std::endl;
+	//}	
 
 	//readFile(argv[1], wordVec);
 	//sanitiser(wordVec);
